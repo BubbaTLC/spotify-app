@@ -1,59 +1,97 @@
-# %%
-import spotipy
-from spotipy.oauth2 import SpotifyOAuth
+
 from py2neo import Graph
+import apache_beam as beam
 
-from config import SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET, SPOTIPY_REDIRECT_URI
-scope = "user-library-read"
+import json
 
-# %%
-def remove_none(dic) -> dict:
-    for key, value in dict(dic).items():
-        if value is None:
-            del dic[key]
-        if isinstance(value, list):
-            for x in value:
-                remove_none(x)
-        if isinstance(value, dict):
-            remove_none(value)
-    return dict(dic)
+from config import NEO4J_DATABASE, NEO4J_HOST, NEO4J_PASSWORD, NEO4J_USER
 
 
-# %%
-def flatten_dict(d: dict, parent_key: str = '', sep: str ='_') -> dict:
-    items = []
-    if isinstance(d, dict):
-        for k, v in dict(d).items():
-            new_key = parent_key + sep + k if parent_key else k
-            if isinstance(v, dict):
-                items.extend(flatten_dict(v, new_key, sep=sep).items())
-            elif isinstance(v, list):
-                for x in v:
-                    items.extend(flatten_dict(x, new_key, sep=sep).items())
-            elif v is None:
-                del d[k]
-            else:
-                items.append((new_key, v))
-    return dict(items)
-# %%
 
-def load_user(graph:Graph, spotify:spotipy.Spotify) -> None:
-    user = spotify.current_user()
-    user = flatten_dict(user)
-    res = graph.run("CREATE (n:User $props) RETURN n", parameters={'props': user})
+
+class Neo4jLoader(beam.DoFn):
+    def __init__(self, host, user, password, query, database='neo4j', batch_size=2000):
+        super().__init__()
+        self.host = host
+        self.database = database
+        self.user = user
+        self.password = password
+        self.batch = []
+        self.batch_size = batch_size
+        self.query = query
+
+    def process(self, element, *args, **kwargs):
+        self.amount = len(element)
+        self.batch.append(element)
+        if self.amount >= self.batch_size:
+            self._flush()
+            self.amount = 0
+
+    def start_bundle(self):
+        self.amount = 0
+    
+    def finish_bundle(self):
+        self._flush()
+        self.batch = []
+    
+    def _flush(self) -> None:
+        if len(self.batch) == 0:
+            return None
+        with Neo4jWriter(
+                host=self.host,
+                database=self.database, 
+                user=self.user, 
+                password=self.password,
+                query=self.query
+            ) as writer:
+            writer.write_batch(self.batch)
+        self.batch = []
+
+class Neo4jWriter():
+    def __init__(self, host, database, user, password, query) -> None:
+        self.host = host
+        self.database = database
+        self.user = user
+        self.password = password
+        self.query = query
+        self.graph = None
+
+    def write_batch(self, batch) -> None:
+        g = self.graph
+        try:
+            tx = g.begin()
+            for x in batch:
+                tx.run(self.query, parameters={"props": x})
+            g.commit(tx)
+        except Exception as e:
+            print(e)
+        return None
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.graph = None
+
+    def __enter__(self):
+        if self.graph is None:
+            try:
+                self.graph = Graph(self.host, name=self.database, auth=(self.user, self.password))
+            except Exception as e:
+                print(e)
+            return self
+
+def destroy() -> None:
+    graph = Graph(NEO4J_HOST, name=NEO4J_DATABASE, auth=(NEO4J_USER, NEO4J_PASSWORD))
+    res = graph.run("MATCH (n) DETACH DELETE n")
     print(res.stats())
-
-# %%
-def main() -> None:
-    sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope=scope, client_id=SPOTIPY_CLIENT_ID, client_secret=SPOTIPY_CLIENT_SECRET, redirect_uri=SPOTIPY_REDIRECT_URI))
-    g = Graph("http://localhost:7474", auth=('neo4j', 'password'))
-
-    load_user(g, sp)
-
     return None
-# %%
+
+
+def main() -> None:
+    return None
+
+
+
 
 if __name__ == '__main__':
     main()
 
-# %%
+

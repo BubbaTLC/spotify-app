@@ -11,8 +11,9 @@
       "program": "${file}",
       "console": "integratedTerminal",
       "justMyCode": true,
-      "cwd": "${workspaceFolder}",
-      "python": "/home/bubba/repos/spotify-app/venv/bin/python3"
+      "cwd": "/home/bubba/repos/spotify_app/spotify",
+      "python": "/home/bubba/repos/spotify_app/venv/bin/python3",
+      "env": {"PYTHONPATH": "/home/bubba/repos/spotify_app/"}
     }
   ]
 }
