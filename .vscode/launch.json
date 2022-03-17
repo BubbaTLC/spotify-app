@@ -5,10 +5,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python: Current File",
+      "name": "Spotify",
       "type": "python",
       "request": "launch",
-      "program": "${file}",
+      "program": "/home/bubba/repos/spotify_app/spotify/main.py",
       "console": "integratedTerminal",
       "justMyCode": true,
       "cwd": "/home/bubba/repos/spotify_app/spotify",

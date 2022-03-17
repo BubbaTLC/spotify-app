@@ -10,7 +10,7 @@ from config import NEO4J_DATABASE, NEO4J_HOST, NEO4J_PASSWORD, NEO4J_USER
 
 
 class Neo4jLoader(beam.DoFn):
-    def __init__(self, host, user, password, query, database='neo4j', batch_size=2000):
+    def __init__(self, host, user, password, query, database='neo4j', batch_size=1000):
         super().__init__()
         self.host = host
         self.database = database
@@ -63,6 +63,7 @@ class Neo4jWriter():
             for x in batch:
                 tx.run(self.query, parameters={"props": x})
             g.commit(tx)
+            print(f"Committed {len(batch)} Record(s)")
         except Exception as e:
             print(e)
         return None

@@ -1,4 +1,5 @@
 import apache_beam as beam
+import requests as req
 
 def flatten_dict( d: dict, parent_key: str = '', sep: str ='_') -> dict:
     items = []
@@ -27,4 +28,13 @@ class extract_items(beam.DoFn):
         ret_val = []
         for x in element['items']:
             ret_val.append(flatten_dict(x))
+        
         return ret_val
+
+class extract_track_href(beam.DoFn):
+    def process(self, element):
+        ret_val = []
+        ret_val.append(element['tracks_href'])
+        return ret_val
+
+
