@@ -1,4 +1,8 @@
 .vscode/*
+docker/data
+docker/import
+docker/logs
+
 
 # Local History for Visual Studio Code
 .history/

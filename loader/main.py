@@ -79,10 +79,12 @@ class Neo4jWriter():
                 print(e)
             return self
 
-def destroy() -> None:
+def destroy(batch_size:int=10000) -> None:
     graph = Graph(NEO4J_HOST, name=NEO4J_DATABASE, auth=(NEO4J_USER, NEO4J_PASSWORD))
-    res = graph.run("MATCH (n) DETACH DELETE n")
-    print(res.stats())
+    total = graph.run("MATCH (n) RETURN count(n);").to_table().pop()[0]
+    for _ in range(0, total, batch_size):
+        res = graph.run(f"MATCH (n) WITH n LIMIT {batch_size} DETACH DELETE n;")
+        print(res.stats())
     return None
 
 
