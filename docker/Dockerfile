@@ -1,7 +1,7 @@
 FROM openjdk:11-jdk-slim
 
-ENV NEO4J_SHA256=fabfc8c5da278b2257be4e41b93acfeca3edc62929d64ed3d97f7a0d7ad36e2f \
-    NEO4J_TARBALL=neo4j-enterprise-4.1.9-unix.tar.gz \
+ENV NEO4J_SHA256=f3b815903fd6ac3fc0c997fa0d9af09eda0b3bdbbb239b4b496474d4e61b9da3 \
+    NEO4J_TARBALL=neo4j-enterprise-4.4.4-unix.tar.gz \
     NEO4J_EDITION=enterprise \
     NEO4J_HOME="/var/lib/neo4j" \
     NEO4J_ACCEPT_LICENSE_AGREEMENT=yes \
@@ -9,21 +9,17 @@ ENV NEO4J_SHA256=fabfc8c5da278b2257be4e41b93acfeca3edc62929d64ed3d97f7a0d7ad36e2
     NEO4J_apoc_export_file_enabled=true \
     NEO4J_apoc_import_file_enabled=true \
     NEO4J_apoc_import_file_use__neo4j__config=true \
-    NEO4JLABS_PLUGINS=["apoc"]
+    NEO4J_dbms_security_procedures_unrestricted=apoc.* \
+    NEO$J_dbms_security_procedures_whitelist=apoc.*
 
-ARG NEO4J_URI=https://dist.neo4j.org/neo4j-enterprise-4.1.9-unix.tar.gz
-ARG TINI_SHA256="12d20136605531b09a2c2dac02ccee85e1b874eb322ef6baf7561cd93f93c855"
-ARG TINI_URI="https://github.com/krallin/tini/releases/download/v0.18.0/tini"
+ARG NEO4J_URI=https://dist.neo4j.org/neo4j-enterprise-4.4.4-unix.tar.gz
 
 RUN addgroup --gid 7474 --system neo4j && adduser --uid 7474 --system --no-create-home --home "${NEO4J_HOME}" --ingroup neo4j neo4j
 
-COPY ./local-package/* /tmp/
+COPY ./local-package/* /startup/
 
 RUN apt update \
-    && apt install -y curl wget gosu jq \
-    && curl -L --fail --silent --show-error ${TINI_URI} > /sbin/tini \
-    && echo "${TINI_SHA256}  /sbin/tini" | sha256sum -c --strict --quiet \
-    && chmod +x /sbin/tini \
+    && apt install -y curl wget gosu jq tini \
     && curl --fail --silent --show-error --location --remote-name ${NEO4J_URI} \
     && echo "${NEO4J_SHA256}  ${NEO4J_TARBALL}" | sha256sum -c --strict --quiet \
     && tar --extract --file ${NEO4J_TARBALL} --directory /var/lib \
@@ -31,31 +27,36 @@ RUN apt update \
     && rm ${NEO4J_TARBALL} \
     && mv "${NEO4J_HOME}"/data /data \
     && mv "${NEO4J_HOME}"/logs /logs \
+    && mv "${NEO4J_HOME}"/plugins /plugins \
+    && mv "${NEO4J_HOME}"/conf /conf \
     && chown -R neo4j:neo4j /data \
     && chmod -R 777 /data \
     && chown -R neo4j:neo4j /logs \
     && chmod -R 777 /logs \
+    && chown -R neo4j:neo4j /plugins \
+    && chmod -R 777 /plugins \
+    && chown -R neo4j:neo4j /conf \
+    && chmod -R 777 /conf \    
     && chown -R neo4j:neo4j "${NEO4J_HOME}" \
     && chmod -R 777 "${NEO4J_HOME}" \
     && ln -s /data "${NEO4J_HOME}"/data \
     && ln -s /logs "${NEO4J_HOME}"/logs \
-    && mv /tmp/neo4jlabs-plugins.json /neo4jlabs-plugins.json \
-    && rm -rf /tmp/* \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get -y purge --auto-remove curl
-
-RUN echo "dbms.security.procedures.unrestricted=apoc.*" >> "${NEO4J_HOME}"/conf/neo4j.conf
+    && ln -s /plugins "${NEO4J_HOME}"/plugins \
+    && ln -s /conf "${NEO4J_HOME}"/conf \
+    && ln -s /startup/docker-entrypoint.sh /docker-entrypoint.sh \
+    && apt-get -y purge --auto-remove curl \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PATH "${NEO4J_HOME}"/bin:$PATH
 
 WORKDIR "${NEO4J_HOME}"
 
-VOLUME /data /logs /plugins /conf /import
+VOLUME /data /logs /plugins /conf
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 7474 7473 7687
 
-ENTRYPOINT ["/sbin/tini", "-g", "--", "/docker-entrypoint.sh"]
+ENTRYPOINT ["tini", "-g", "--", "/startup/docker-entrypoint.sh"]
 CMD ["neo4j"]
